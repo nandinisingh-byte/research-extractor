@@ -567,7 +567,7 @@
 <header>
   <div class="header-top">
     <!-- Orbitt Space Logo -->
-    <a class="logo" href="#">
+    <a class="logo" href="https://www.orbitt.space" target="_blank" rel="noopener">
       <div class="logo-mark">
         <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Row 1: 3 open circles -->
@@ -722,7 +722,13 @@
       <span class="search-chip" onclick="quickSearch('earth observation small satellite')">🌍 Earth Observation</span>
     </div>
 
-    <div class="results-header" id="discover-results-header" style="display:none"></div>
+    <div id="discover-results-header" style="display:none; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
+      <span id="discover-results-count" style="font-weight:700; color:var(--navy); font-size:15px;"></span>
+      <button id="save-all-btn" onclick="saveAllPapers()"
+        style="background:var(--navy); color:white; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
+        💾 Save All to Database
+      </button>
+    </div>
     <div id="discover-results"></div>
   </div>
 </div>
@@ -1081,8 +1087,11 @@
       return;
     }
 
-    header.style.display = 'block';
-    header.textContent = `${results.length} papers found for "${q}"`;
+    header.style.display = 'flex';
+    document.getElementById('discover-results-count').textContent =
+      `${results.length} papers found for "${q}"`;
+    document.getElementById('save-all-btn').textContent = '💾 Save All to Database';
+    document.getElementById('save-all-btn').disabled = false;
 
     container.innerHTML = results.map((p, i) => {
       const sourceClass = p.source === 'arXiv' ? 'source-arxiv' : 'source-ss';
@@ -1143,6 +1152,43 @@
       btn.textContent = '+ Add to Database';
       alert('Network error: ' + e.message);
     }
+  }
+
+  // ── Save all search results to database ───────────────────────────────────
+  async function saveAllPapers() {
+    const unadded = searchResults.filter(p => !addedIds.has(p.paper_id || p.title));
+    if (!unadded.length) {
+      alert('All papers already saved to your database!');
+      return;
+    }
+
+    const btn = document.getElementById('save-all-btn');
+    btn.disabled = true;
+
+    let saved = 0, failed = 0;
+    for (let i = 0; i < unadded.length; i++) {
+      const p = unadded[i];
+      btn.textContent = `⏳ Saving ${i + 1} of ${unadded.length}…`;
+      try {
+        const res = await fetch('/api/add-from-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+        });
+        const data = await res.json();
+        if (data.success) {
+          addedIds.add(p.paper_id || p.title);
+          // mark individual card buttons as added
+          const cardIdx = searchResults.indexOf(p);
+          const cardBtn = document.getElementById(`add-btn-${cardIdx}`);
+          if (cardBtn) { cardBtn.classList.add('added'); cardBtn.textContent = '✅ Added'; cardBtn.disabled = true; }
+          saved++;
+        } else { failed++; }
+      } catch { failed++; }
+    }
+
+    btn.textContent = failed ? `✅ ${saved} saved, ${failed} failed` : `✅ All ${saved} saved!`;
+    loadPapers(); // refresh stats bar
   }
 
   // ── Tabs (updated to include discover) ────────────────────────────────────
