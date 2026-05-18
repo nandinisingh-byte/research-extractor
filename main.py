@@ -23,7 +23,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 load_dotenv()
 
-from database import get_all_papers, get_paper_count, get_paper_by_id, init_db, save_paper
+from database import delete_paper, get_all_papers, get_paper_count, get_paper_by_id, init_db, save_paper
 from exports import generate_all_docx, generate_all_pdf, generate_docx, generate_pdf
 from extractor import extract_paper
 from models import ExtractionResponse, ResearchPaper
@@ -74,6 +74,15 @@ def dashboard():
 def api_papers():
     """Returns all stored papers as JSON. Used by the dashboard."""
     return JSONResponse(content=get_all_papers())
+
+
+@app.delete("/api/papers/{paper_id}", tags=["Dashboard"], summary="Delete a paper from the database")
+def delete_paper_endpoint(paper_id: int):
+    """Permanently delete a paper by ID."""
+    removed = delete_paper(paper_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    return {"success": True, "deleted_id": paper_id}
 
 
 @app.post(

@@ -207,3 +207,14 @@ def get_paper_by_id(paper_id: int) -> dict | None:
 def get_paper_count() -> int:
     with Session(engine) as session:
         return session.query(PaperRecord).count()
+
+
+def delete_paper(paper_id: int) -> bool:
+    """Delete a paper by ID. Returns True if deleted, False if not found."""
+    with Session(engine) as session:
+        record = session.query(PaperRecord).filter(PaperRecord.id == paper_id).first()
+        if not record:
+            return False
+        session.delete(record)
+        session.commit()
+        return True

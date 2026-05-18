@@ -652,10 +652,11 @@
           <th>Tags</th>
           <th>Summary</th>
           <th data-col="added_at">Added <span class="sort-arrow">↕</span></th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="table-body">
-        <tr><td colspan="8"><div class="empty"><div class="icon">⏳</div><h3>Loading…</h3></div></td></tr>
+        <tr><td colspan="9"><div class="empty"><div class="icon">⏳</div><h3>Loading…</h3></div></td></tr>
       </tbody>
     </table>
   </div>
@@ -879,7 +880,7 @@
       renderTable();
     } catch (e) {
       document.getElementById('table-body').innerHTML =
-        `<tr><td colspan="8"><div class="empty"><div class="icon">⚠️</div><h3>Could not load papers</h3><p>${e.message}</p></div></td></tr>`;
+        `<tr><td colspan="9"><div class="empty"><div class="icon">⚠️</div><h3>Could not load papers</h3><p>${e.message}</p></div></td></tr>`;
     }
   }
 
@@ -941,7 +942,7 @@
     document.getElementById('results-count').textContent = `${filtered.length} of ${allPapers.length} paper${allPapers.length!==1?'s':''}`;
     if(!filtered.length) {
       document.getElementById('table-body').innerHTML =
-        `<tr><td colspan="8"><div class="empty"><div class="icon">🔍</div><h3>No papers match</h3><p>Try adjusting filters.</p></div></td></tr>`;
+        `<tr><td colspan="9"><div class="empty"><div class="icon">🔍</div><h3>No papers match</h3><p>Try adjusting filters.</p></div></td></tr>`;
       return;
     }
     document.getElementById('table-body').innerHTML = filtered.map(p=>`
@@ -954,6 +955,14 @@
         <td>${tagsHtml(p.tags)}</td>
         <td class="td-summary">${esc(p.summary)}</td>
         <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(p.added_at)}</td>
+        <td onclick="event.stopPropagation()">
+          <button onclick="deletePaper(${p.id}, this)"
+            title="Remove from database"
+            style="background:none;border:1px solid #e0c0c0;color:#c0392b;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;white-space:nowrap;"
+            onmouseover="this.style.background='#fdecea'" onmouseout="this.style.background='none'">
+            🗑 Remove
+          </button>
+        </td>
       </tr>`).join('');
   }
 
@@ -1150,6 +1159,30 @@
     } catch (e) {
       btn.disabled = false;
       btn.textContent = '+ Add to Database';
+      alert('Network error: ' + e.message);
+    }
+  }
+
+  // ── Delete a paper ─────────────────────────────────────────────────────────
+  async function deletePaper(id, btn) {
+    if (!confirm('Remove this paper from your database?')) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const res = await fetch(`/api/papers/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        // Remove from local array and re-render without full reload
+        allPapers = allPapers.filter(p => p.id !== id);
+        updateStats();
+        renderTable();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🗑 Remove';
+        alert('Could not delete — please try again.');
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '🗑 Remove';
       alert('Network error: ' + e.message);
     }
   }
