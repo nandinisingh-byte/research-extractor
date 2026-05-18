@@ -28,6 +28,7 @@ from exports import generate_all_docx, generate_all_pdf, generate_docx, generate
 from extractor import extract_paper
 from models import ExtractionResponse, ResearchPaper
 from notion_sync import push_to_notion
+from search import enrich_from_metadata, search_papers
 
 # ── App setup ──────────────────────────────────────────────────────────────────
 
@@ -193,6 +194,51 @@ async def sync_to_notion(paper: ResearchPaper):
         pass
 
     return ExtractionResponse(success=True, notion_page_id=page_id, notion_url=page_url, paper=paper)
+
+
+# ── Search & discover endpoints ────────────────────────────────────────────────
+
+@app.get("/api/search", tags=["Search"])
+def search_endpoint(q: str, limit: int = 15):
+    """
+    Search Semantic Scholar + arXiv for papers matching the query.
+    Returns a list of results with title, authors, year, abstract, URL.
+    No papers are saved — use /api/add-from-search to add one.
+    """
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Query must be at least 2 characters.")
+    results = search_papers(q.strip(), limit=limit)
+    return JSONResponse(content={"results": results, "count": len(results)})
+
+
+@app.post("/api/add-from-search", tags=["Search"])
+async def add_from_search(body: dict):
+    """
+    Takes a search result dict, uses Claude to enrich the metadata into
+    full structured fields, then saves to the dashboard database.
+    Optionally also pushes to Notion if NOTION_TOKEN is set.
+    """
+    try:
+        paper = enrich_from_metadata(body)
+    except Exception as e:
+        return ExtractionResponse(success=False, error=f"Enrichment failed: {e}")
+
+    page_id, page_url = None, None
+    notion_token = os.environ.get("NOTION_TOKEN")
+    if notion_token:
+        try:
+            page_id, page_url = push_to_notion(paper)
+        except Exception:
+            pass  # Notion failure shouldn't block dashboard save
+
+    try:
+        save_paper(paper, notion_page_id=page_id, notion_url=page_url)
+    except Exception as e:
+        return ExtractionResponse(success=False, paper=paper,
+                                  error=f"Enrichment succeeded but save failed: {e}")
+
+    return ExtractionResponse(success=True, notion_page_id=page_id,
+                              notion_url=page_url, paper=paper)
 
 
 # ── Export endpoints ───────────────────────────────────────────────────────────

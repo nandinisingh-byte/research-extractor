@@ -431,6 +431,115 @@
     .empty h3 { font-size: 20px; margin-bottom: 8px; color: var(--navy); }
     .empty p { font-size: 14px; }
 
+    /* ── Discover panel ── */
+    .discover-panel { padding: 32px 40px; max-width: 900px; margin: 0 auto; }
+    .discover-panel h2 { font-size: 20px; font-weight: 800; color: var(--navy); margin-bottom: 4px; }
+    .discover-panel > p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+    .search-row {
+      display: flex; gap: 10px; margin-bottom: 28px;
+    }
+    .discover-input {
+      flex: 1;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 15px;
+      outline: none;
+      background: white;
+      color: var(--navy);
+      transition: border-color 0.2s;
+    }
+    .discover-input:focus { border-color: var(--sky); }
+    .discover-btn {
+      background: var(--orange);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .discover-btn:hover { background: var(--orange2); }
+    .discover-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .search-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .search-chip {
+      padding: 5px 14px;
+      border-radius: 99px;
+      border: 1.5px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--navy);
+      background: white;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .search-chip:hover { border-color: var(--orange); color: var(--orange); background: #fff8f3; }
+
+    .results-header {
+      font-size: 13px; color: var(--muted);
+      margin-bottom: 16px; font-weight: 600;
+    }
+
+    .paper-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 14px;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .paper-card:hover { box-shadow: 0 4px 20px rgba(3,26,58,0.09); border-color: var(--sky); }
+
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .card-title { font-size: 15px; font-weight: 800; color: var(--navy); line-height: 1.4; flex: 1; }
+    .card-source {
+      font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 99px; white-space: nowrap; flex-shrink: 0;
+    }
+    .source-ss    { background: #e8f0fe; color: #1a56db; }
+    .source-arxiv { background: #fef3e2; color: #b45309; }
+
+    .card-meta { font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+    .card-abstract {
+      font-size: 13px; color: #3a4a5a; line-height: 1.65;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .card-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card-link {
+      font-size: 12px; color: var(--sky); font-weight: 600;
+      text-decoration: none; margin-left: auto;
+    }
+    .card-link:hover { color: var(--navy); }
+    .card-citations { font-size: 12px; color: var(--muted); }
+
+    .add-btn {
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .add-btn:hover { background: var(--navy2); }
+    .add-btn:disabled { background: #aaa; cursor: not-allowed; }
+    .add-btn.added { background: var(--low); }
+
+    .discover-empty {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .discover-empty .icon { font-size: 44px; margin-bottom: 12px; }
+    .discover-empty h3 { font-size: 18px; color: var(--navy); margin-bottom: 6px; }
+
     /* ── Footer ── */
     footer {
       background: var(--navy);
@@ -499,6 +608,7 @@
 <div class="tabs">
   <div class="tab active" onclick="switchTab('papers')">📋 All Papers</div>
   <div class="tab" onclick="switchTab('upload')">⬆️ Upload Paper</div>
+  <div class="tab" onclick="switchTab('discover')">🔍 Discover Papers</div>
 </div>
 
 <!-- ── Papers panel ── -->
@@ -587,6 +697,33 @@
       <h4 id="result-title"></h4>
       <p id="result-body"></p>
     </div>
+  </div>
+</div>
+
+<!-- ── Discover panel ── -->
+<div class="panel" id="panel-discover">
+  <div class="discover-panel">
+    <h2>Discover Research Papers</h2>
+    <p>Search Semantic Scholar and arXiv — find papers and add them to your database in one click.</p>
+
+    <div class="search-row">
+      <input class="discover-input" id="discover-input" type="search"
+             placeholder="e.g. VLEO atmospheric drag, satellite orbit decay, space debris…"
+             onkeydown="if(event.key==='Enter') doSearch()" />
+      <button class="discover-btn" id="discover-btn" onclick="doSearch()">Search</button>
+    </div>
+
+    <div class="search-chips">
+      <span class="search-chip" onclick="quickSearch('VLEO very low earth orbit')">🛰️ VLEO</span>
+      <span class="search-chip" onclick="quickSearch('atmospheric drag satellite orbit')">💨 Atmospheric Drag</span>
+      <span class="search-chip" onclick="quickSearch('space debris collision risk LEO')">🗑️ Space Debris</span>
+      <span class="search-chip" onclick="quickSearch('satellite aerodynamic design low orbit')">🔧 Aerodynamic Design</span>
+      <span class="search-chip" onclick="quickSearch('orbital decay atmospheric density')">📉 Orbital Decay</span>
+      <span class="search-chip" onclick="quickSearch('earth observation small satellite')">🌍 Earth Observation</span>
+    </div>
+
+    <div class="results-header" id="discover-results-header" style="display:none"></div>
+    <div id="discover-results"></div>
   </div>
 </div>
 
@@ -881,6 +1018,124 @@
     if(!document.getElementById('export-all-btn').contains(e.target))
       document.getElementById('export-menu').style.display='none';
   });
+
+  // ── Discover / Search ─────────────────────────────────────────────────────
+  let searchResults = [];
+  const addedIds = new Set(); // track which papers already added this session
+
+  function quickSearch(q) {
+    document.getElementById('discover-input').value = q;
+    doSearch();
+  }
+
+  async function doSearch() {
+    const q = document.getElementById('discover-input').value.trim();
+    if (!q) return;
+
+    const btn = document.getElementById('discover-btn');
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+    document.getElementById('discover-results-header').style.display = 'none';
+    document.getElementById('discover-results').innerHTML =
+      `<div class="discover-empty"><div class="icon">⏳</div><h3>Searching databases…</h3><p>Checking Semantic Scholar and arXiv</p></div>`;
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
+      const data = await res.json();
+      searchResults = data.results || [];
+      renderSearchResults(searchResults, q);
+    } catch (e) {
+      document.getElementById('discover-results').innerHTML =
+        `<div class="discover-empty"><div class="icon">⚠️</div><h3>Search failed</h3><p>${e.message}</p></div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search';
+    }
+  }
+
+  function renderSearchResults(results, q) {
+    const header = document.getElementById('discover-results-header');
+    const container = document.getElementById('discover-results');
+
+    if (!results.length) {
+      header.style.display = 'none';
+      container.innerHTML =
+        `<div class="discover-empty"><div class="icon">🔍</div><h3>No results found</h3><p>Try different keywords or check spelling.</p></div>`;
+      return;
+    }
+
+    header.style.display = 'block';
+    header.textContent = `${results.length} papers found for "${q}"`;
+
+    container.innerHTML = results.map((p, i) => {
+      const sourceClass = p.source === 'arXiv' ? 'source-arxiv' : 'source-ss';
+      const alreadyAdded = addedIds.has(p.paper_id || p.title);
+      const citations = p.citation_count != null ? `📊 ${p.citation_count} citations` : '';
+      return `
+        <div class="paper-card" id="card-${i}">
+          <div class="card-top">
+            <div class="card-title">${esc(p.title)}</div>
+            <span class="card-source ${sourceClass}">${esc(p.source)}</span>
+          </div>
+          <div class="card-meta">
+            ${esc(p.authors)} ${p.year ? '· ' + p.year : ''} ${p.venue ? '· ' + esc(p.venue) : ''}
+          </div>
+          <div class="card-abstract">${esc(p.abstract || 'No abstract available.')}</div>
+          <div class="card-footer">
+            <button class="add-btn ${alreadyAdded ? 'added' : ''}"
+                    id="add-btn-${i}"
+                    onclick="addPaper(${i})"
+                    ${alreadyAdded ? 'disabled' : ''}>
+              ${alreadyAdded ? '✅ Added' : '+ Add to Database'}
+            </button>
+            ${citations ? `<span class="card-citations">${citations}</span>` : ''}
+            ${p.url ? `<a class="card-link" href="${esc(p.url)}" target="_blank">View paper →</a>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function addPaper(idx) {
+    const paper = searchResults[idx];
+    if (!paper) return;
+
+    const btn = document.getElementById(`add-btn-${idx}`);
+    btn.disabled = true;
+    btn.textContent = '⏳ Adding…';
+
+    try {
+      const res = await fetch('/api/add-from-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paper),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        btn.classList.add('added');
+        btn.textContent = '✅ Added';
+        addedIds.add(paper.paper_id || paper.title);
+        loadPapers(); // refresh paper count in stats
+      } else {
+        btn.disabled = false;
+        btn.textContent = '+ Add to Database';
+        alert('Failed to add: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '+ Add to Database';
+      alert('Network error: ' + e.message);
+    }
+  }
+
+  // ── Tabs (updated to include discover) ────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t,i) =>
+      t.classList.toggle('active', ['papers','upload','discover'][i] === name));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'papers') loadPapers();
+  }
 
   // ── Init ───────────────────────────────────────────────────────────────────
   loadPapers();
