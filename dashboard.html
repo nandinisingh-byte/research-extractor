@@ -301,8 +301,10 @@
       text-decoration: none; transition: opacity 0.15s;
     }
     .modal-link:hover { opacity: 0.85; }
-    .modal-link.notion { background: #1A1A2E; color: white; }
-    .modal-link.doi    { background: var(--blue); color: white; }
+    .modal-link.notion  { background: #1A1A2E; color: white; }
+    .modal-link.doi     { background: var(--blue); color: white; }
+    .modal-link.dl-pdf  { background: #C0392B; color: white; }
+    .modal-link.dl-docx { background: #1E5799; color: white; }
     .meta-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
     .meta-chip { padding: 4px 12px; border-radius: 99px; font-size: 12px; background: #E8EEF6; color: var(--blue); font-weight: 500; }
 
@@ -359,6 +361,15 @@
     </select>
     <select id="filter-year"><option value="">All years</option></select>
     <span class="results-count" id="results-count"></span>
+    <div style="position:relative;margin-left:auto">
+      <button id="export-all-btn" onclick="toggleExportMenu()" style="background:var(--blue);color:white;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+        ⬇️ Export All
+      </button>
+      <div id="export-menu" style="display:none;position:absolute;right:0;top:38px;background:white;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:100;min-width:180px;overflow:hidden;">
+        <a href="/api/papers/export/pdf" download style="display:block;padding:11px 16px;font-size:13px;font-weight:600;color:#C0392B;text-decoration:none;border-bottom:1px solid var(--border);">📄 Download all as PDF</a>
+        <a href="/api/papers/export/docx" download style="display:block;padding:11px 16px;font-size:13px;font-weight:600;color:#1E5799;text-decoration:none;">📝 Download all as Word</a>
+      </div>
+    </div>
   </div>
 
   <div class="table-wrap">
@@ -448,6 +459,10 @@
         <p style="margin-top:12px;font-size:14px;font-style:italic;color:#555" id="m-vleo-verdict"></p>
       </div>
       <div class="modal-section" id="m-refs-section"><h3>References</h3><p id="m-refs" style="font-size:13px;color:#555;white-space:pre-line"></p></div>
+      <div class="modal-section">
+        <h3>Download This Paper</h3>
+        <div class="modal-links" id="m-downloads"></div>
+      </div>
       <div class="modal-section" id="m-links-section"><h3>Links</h3><div class="modal-links" id="m-links"></div></div>
     </div>
   </div>
@@ -684,6 +699,11 @@
       ].map(([k,lbl])=>`<div class="vleo-criterion"><span class="score">${n[k]||'❌'}</span>${esc(lbl)}<span class="label">${k.replace(/_/g,' ')}</span></div>`).join('');
       document.getElementById('m-vleo-verdict').innerHTML = `${vleoBadge(p.vleo_relevance)} &nbsp;—&nbsp; ${esc(n.verdict||'')}`;
     } else { document.getElementById('m-vleo-section').style.display='none'; }
+    // Download buttons
+    document.getElementById('m-downloads').innerHTML = `
+      <a class="modal-link dl-pdf" href="/api/papers/${p.id}/export/pdf" download>📄 Download PDF</a>
+      <a class="modal-link dl-docx" href="/api/papers/${p.id}/export/docx" download>📝 Download Word</a>
+    `;
     const links=[];
     if (p.notion_url) links.push(`<a class="modal-link notion" href="${esc(p.notion_url)}" target="_blank">🔗 Open in Notion</a>`);
     if (p.doi_url)    links.push(`<a class="modal-link doi" href="${esc(p.doi_url)}" target="_blank">📄 View Paper</a>`);
@@ -696,6 +716,17 @@
   function closeModal(e) { if (e.target===document.getElementById('modal-overlay')) closeModalDirect(); }
   function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); document.body.style.overflow=''; }
   document.addEventListener('keydown', e => { if (e.key==='Escape') closeModalDirect(); });
+
+  // ── Export menu ────────────────────────────────────────────────────────────
+  function toggleExportMenu() {
+    const menu = document.getElementById('export-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+  document.addEventListener('click', e => {
+    if (!document.getElementById('export-all-btn').contains(e.target)) {
+      document.getElementById('export-menu').style.display = 'none';
+    }
+  });
 
   // ── Init ───────────────────────────────────────────────────────────────────
   loadPapers();

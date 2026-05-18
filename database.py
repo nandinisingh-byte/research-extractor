@@ -165,6 +165,45 @@ def get_all_papers() -> list[dict]:
         return result
 
 
+def get_paper_by_id(paper_id: int) -> dict | None:
+    """Return a single paper as a dict, or None if not found."""
+    with Session(engine) as session:
+        r = session.query(PaperRecord).filter(PaperRecord.id == paper_id).first()
+        if not r:
+            return None
+        notes = None
+        if r.vleo_relevance_notes:
+            try:
+                import json
+                notes = json.loads(r.vleo_relevance_notes)
+            except Exception:
+                pass
+        return {
+            "id":                   r.id,
+            "added_at":             r.added_at.strftime("%Y-%m-%d") if r.added_at else "",
+            "title":                r.title or "",
+            "authors":              r.authors or "",
+            "year":                 r.year,
+            "journal_conference":   r.journal_conference or "",
+            "doi_url":              r.doi_url or "",
+            "tags":                 r.tags or "",
+            "methodology_type":     r.methodology_type or "",
+            "altitude_range":       r.altitude_range or "",
+            "mission_type":         r.mission_type or "",
+            "organization_agency":  r.organization_agency or "",
+            "status":               r.status or "",
+            "aim":                  r.aim or "",
+            "methodology":          r.methodology or "",
+            "key_results":          r.key_results or "",
+            "figures_graphs":       r.figures_graphs or "",
+            "summary":              r.summary or "",
+            "references":           r.references or "",
+            "vleo_relevance":       r.vleo_relevance or "",
+            "vleo_relevance_notes": notes,
+            "notion_url":           r.notion_url or "",
+        }
+
+
 def get_paper_count() -> int:
     with Session(engine) as session:
         return session.query(PaperRecord).count()

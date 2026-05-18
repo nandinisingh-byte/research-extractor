@@ -19,11 +19,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 load_dotenv()
 
-from database import get_all_papers, get_paper_count, init_db, save_paper
+from database import get_all_papers, get_paper_count, get_paper_by_id, init_db, save_paper
+from exports import generate_all_docx, generate_all_pdf, generate_docx, generate_pdf
 from extractor import extract_paper
 from models import ExtractionResponse, ResearchPaper
 from notion_sync import push_to_notion
@@ -192,6 +193,62 @@ async def sync_to_notion(paper: ResearchPaper):
         pass
 
     return ExtractionResponse(success=True, notion_page_id=page_id, notion_url=page_url, paper=paper)
+
+
+# ── Export endpoints ───────────────────────────────────────────────────────────
+
+@app.get("/api/papers/{paper_id}/export/pdf", tags=["Export"],
+         summary="Download a single paper as a PDF report")
+def export_paper_pdf(paper_id: int):
+    paper = get_paper_by_id(paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    filename = paper["title"][:60].replace(" ", "_").replace("/", "-") + ".pdf"
+    return Response(
+        content=generate_pdf(paper),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/papers/{paper_id}/export/docx", tags=["Export"],
+         summary="Download a single paper as a Word document")
+def export_paper_docx(paper_id: int):
+    paper = get_paper_by_id(paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    filename = paper["title"][:60].replace(" ", "_").replace("/", "-") + ".docx"
+    return Response(
+        content=generate_docx(paper),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/papers/export/pdf", tags=["Export"],
+         summary="Download all papers as a combined PDF report")
+def export_all_pdf():
+    papers = get_all_papers()
+    if not papers:
+        raise HTTPException(status_code=404, detail="No papers in database")
+    return Response(
+        content=generate_all_pdf(papers),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="research_papers_export.pdf"'},
+    )
+
+
+@app.get("/api/papers/export/docx", tags=["Export"],
+         summary="Download all papers as a combined Word document")
+def export_all_docx():
+    papers = get_all_papers()
+    if not papers:
+        raise HTTPException(status_code=404, detail="No papers in database")
+    return Response(
+        content=generate_all_docx(papers),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": 'attachment; filename="research_papers_export.docx"'},
+    )
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
