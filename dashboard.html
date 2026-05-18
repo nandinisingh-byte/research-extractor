@@ -1042,6 +1042,19 @@
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
       const data = await res.json();
+
+      if (!res.ok) {
+        // API returned an error (404 = endpoint not deployed yet, 400 = bad query, etc.)
+        const msg = data.detail || `Server returned ${res.status}`;
+        document.getElementById('discover-results').innerHTML =
+          `<div class="discover-empty"><div class="icon">⚠️</div><h3>Search unavailable</h3>
+           <p>${msg}</p>
+           <p style="margin-top:8px;font-size:0.85em;color:var(--muted)">
+             Make sure the latest <code>main.py</code> and <code>search.py</code> are deployed on Railway.
+           </p></div>`;
+        return;
+      }
+
       searchResults = data.results || [];
       renderSearchResults(searchResults, q);
     } catch (e) {
@@ -1060,7 +1073,11 @@
     if (!results.length) {
       header.style.display = 'none';
       container.innerHTML =
-        `<div class="discover-empty"><div class="icon">🔍</div><h3>No results found</h3><p>Try different keywords or check spelling.</p></div>`;
+        `<div class="discover-empty"><div class="icon">🔍</div><h3>No results found</h3>
+         <p>Try shorter keywords instead of a full title.</p>
+         <p style="margin-top:8px;font-size:0.85em;color:var(--muted)">
+           Example: instead of the full title, try <em>"LEO capacity source-sink"</em> or <em>"low earth orbit capacity model"</em>
+         </p></div>`;
       return;
     }
 
