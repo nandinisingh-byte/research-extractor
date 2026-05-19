@@ -615,6 +615,38 @@
 <div class="panel active" id="panel-papers">
   <div class="controls">
     <input class="search-box" id="search" type="search" placeholder="🔍  Search title, author, tags, summary…" />
+    <select id="filter-topic">
+      <option value="">All topics</option>
+      <option value="ABEP">ABEP</option>
+      <option value="VLEO">VLEO</option>
+      <option value="Propulsion">Propulsion</option>
+      <option value="Plasma">Plasma</option>
+      <option value="Power Electronics">Power Electronics</option>
+      <option value="Missions">Missions</option>
+      <option value="Operations">Operations</option>
+      <option value="Aerodynamics">Aerodynamics</option>
+      <option value="Atmospheric Drag">Atmospheric Drag</option>
+      <option value="Drag Compensation">Drag Compensation</option>
+      <option value="Space Debris">Space Debris</option>
+      <option value="Collision Avoidance">Collision Avoidance</option>
+      <option value="Space Sustainability">Space Sustainability</option>
+      <option value="Earth Observation">Earth Observation</option>
+      <option value="Navigation">Navigation</option>
+      <option value="Communications">Communications</option>
+      <option value="Thermal Management">Thermal Management</option>
+      <option value="Materials">Materials</option>
+      <option value="Orbit Mechanics">Orbit Mechanics</option>
+      <option value="Attitude Control">Attitude Control</option>
+      <option value="Hall Effect Thruster">Hall Effect Thruster</option>
+      <option value="Ion Thruster">Ion Thruster</option>
+      <option value="Solar Cells">Solar Cells</option>
+      <option value="Atomic Oxygen">Atomic Oxygen</option>
+      <option value="Neutral Gas Ingestion">Neutral Gas Ingestion</option>
+      <option value="Ionosphere">Ionosphere</option>
+      <option value="Thermosphere">Thermosphere</option>
+      <option value="Cubesat">Cubesat</option>
+      <option value="Small Satellite">Small Satellite</option>
+    </select>
     <select id="filter-vleo">
       <option value="">All VLEO relevance</option>
       <option value="High">🔴 High</option>
@@ -715,12 +747,22 @@
     </div>
 
     <div class="search-chips">
-      <span class="search-chip" onclick="quickSearch('VLEO very low earth orbit')">🛰️ VLEO</span>
-      <span class="search-chip" onclick="quickSearch('atmospheric drag satellite orbit')">💨 Atmospheric Drag</span>
-      <span class="search-chip" onclick="quickSearch('space debris collision risk LEO')">🗑️ Space Debris</span>
-      <span class="search-chip" onclick="quickSearch('satellite aerodynamic design low orbit')">🔧 Aerodynamic Design</span>
-      <span class="search-chip" onclick="quickSearch('orbital decay atmospheric density')">📉 Orbital Decay</span>
-      <span class="search-chip" onclick="quickSearch('earth observation small satellite')">🌍 Earth Observation</span>
+      <span class="search-chip" onclick="quickSearch('ABEP air-breathing electric propulsion VLEO')">⚡ ABEP</span>
+      <span class="search-chip" onclick="quickSearch('VLEO very low earth orbit satellite')">🛰️ VLEO</span>
+      <span class="search-chip" onclick="quickSearch('electric propulsion thruster satellite')">🔥 Propulsion</span>
+      <span class="search-chip" onclick="quickSearch('plasma thruster ionisation discharge')">🌀 Plasma</span>
+      <span class="search-chip" onclick="quickSearch('power electronics satellite solar energy')">⚡ Power Electronics</span>
+      <span class="search-chip" onclick="quickSearch('satellite mission design LEO operations')">🎯 Missions</span>
+      <span class="search-chip" onclick="quickSearch('satellite operations ground station control')">🖥️ Operations</span>
+      <span class="search-chip" onclick="quickSearch('satellite aerodynamic design drag VLEO')">🌬️ Aerodynamics</span>
+      <span class="search-chip" onclick="quickSearch('atmospheric drag density orbital decay')">💨 Atmospheric Drag</span>
+      <span class="search-chip" onclick="quickSearch('space debris collision risk removal')">🗑️ Space Debris</span>
+      <span class="search-chip" onclick="quickSearch('neutral gas ingestion atomic oxygen VLEO intake')">💧 Gas Ingestion</span>
+      <span class="search-chip" onclick="quickSearch('ionosphere thermosphere atmosphere density model')">🌐 Ionosphere</span>
+      <span class="search-chip" onclick="quickSearch('earth observation remote sensing small satellite')">🌍 Earth Observation</span>
+      <span class="search-chip" onclick="quickSearch('hall effect thruster ion propulsion electric')">🔵 Hall Thruster</span>
+      <span class="search-chip" onclick="quickSearch('cubesat small satellite LEO nanosatellite')">📦 Cubesat</span>
+      <span class="search-chip" onclick="quickSearch('orbit mechanics trajectory perturbation')">🔄 Orbit Mechanics</span>
     </div>
 
     <div id="discover-results-header" style="display:none; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
@@ -900,14 +942,16 @@
 
   function getFiltered() {
     const q=document.getElementById('search').value.toLowerCase();
+    const topic=document.getElementById('filter-topic').value.toLowerCase();
     const vleo=document.getElementById('filter-vleo').value.toLowerCase();
     const alt=document.getElementById('filter-altitude').value.toLowerCase();
     const year=document.getElementById('filter-year').value;
     return allPapers.filter(p=>{
-      if(q    && !`${p.title} ${p.authors} ${p.tags} ${p.summary} ${p.aim}`.toLowerCase().includes(q)) return false;
-      if(vleo && !(p.vleo_relevance||'').toLowerCase().includes(vleo)) return false;
-      if(alt  && !(p.altitude_range||'').toLowerCase().includes(alt)) return false;
-      if(year && String(p.year)!==year) return false;
+      if(q     && !`${p.title} ${p.authors} ${p.tags} ${p.summary} ${p.aim}`.toLowerCase().includes(q)) return false;
+      if(topic && !(p.tags||'').toLowerCase().includes(topic)) return false;
+      if(vleo  && !(p.vleo_relevance||'').toLowerCase().includes(vleo)) return false;
+      if(alt   && !(p.altitude_range||'').toLowerCase().includes(alt)) return false;
+      if(year  && String(p.year)!==year) return false;
       return true;
     });
   }
@@ -977,7 +1021,7 @@
     });
   });
 
-  ['search','filter-vleo','filter-altitude','filter-year'].forEach(id=>
+  ['search','filter-topic','filter-vleo','filter-altitude','filter-year'].forEach(id=>
     document.getElementById(id).addEventListener('input', renderTable));
 
   // ── Modal ──────────────────────────────────────────────────────────────────
