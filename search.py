@@ -4,8 +4,12 @@ search.py — Search academic databases for research papers.
 Sources:
   1. Semantic Scholar (primary) — broad coverage, free, no key needed
   2. arXiv (secondary)          — great for space/satellite/physics papers
+  3. CrossRef                   — DOI lookup, full bibliographic metadata
+  4. arXiv direct               — lookup by arXiv ID
+  5. Semantic Scholar author    — lookup papers by author name
 
-Returns a unified list of SearchResult dicts.
+Auto-detection: if the query looks like a DOI, arXiv ID, URL, or author name,
+the appropriate lookup is used instead of keyword search.
 """
 
 import re
@@ -179,16 +183,254 @@ def search_arxiv(query: str, limit: int = 8) -> list[dict]:
         return []
 
 
+# ── CrossRef DOI lookup ───────────────────────────────────────────────────────
+
+CROSSREF_BASE = "https://api.crossref.org/works"
+
+
+def lookup_by_doi(doi: str) -> list[dict]:
+    """Look up a single paper by DOI via CrossRef."""
+    doi = doi.strip().lstrip("https://doi.org/").lstrip("http://doi.org/").lstrip("doi:")
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            resp = client.get(
+                f"{CROSSREF_BASE}/{doi}",
+                headers={"User-Agent": "OrbittSpaceResearchTool/1.0 (mailto:research@orbitt.space)"},
+            )
+        if resp.status_code != 200:
+            return []
+        item = resp.json().get("message", {})
+
+        # Authors
+        authors_list = [
+            f"{a.get('given', '')} {a.get('family', '')}".strip()
+            for a in item.get("author", [])[:5]
+        ]
+        authors = ", ".join(authors_list)
+        if len(item.get("author", [])) > 5:
+            authors += " et al."
+
+        # Year
+        year = None
+        date_parts = item.get("published", {}).get("date-parts", [[]])[0]
+        if date_parts:
+            year = date_parts[0]
+
+        # Abstract (CrossRef sometimes has it)
+        abstract = item.get("abstract", "")
+        # Strip JATS XML tags if present
+        abstract = re.sub(r"<[^>]+>", " ", abstract).strip()
+
+        title_list = item.get("title", ["Untitled"])
+        title = title_list[0] if title_list else "Untitled"
+        venue = (item.get("container-title") or [""])[0]
+
+        return [make_result(
+            source="CrossRef (DOI)",
+            title=title,
+            authors=authors,
+            year=year,
+            abstract=abstract or "No abstract available from CrossRef.",
+            doi=doi,
+            url=f"https://doi.org/{doi}",
+            venue=venue,
+            citation_count=item.get("is-referenced-by-count"),
+            paper_id=doi,
+        )]
+    except Exception:
+        return []
+
+
+# ── arXiv direct ID lookup ─────────────────────────────────────────────────────
+
+def lookup_by_arxiv_id(arxiv_id: str) -> list[dict]:
+    """Look up a single paper directly by arXiv ID (e.g. 2301.12345)."""
+    arxiv_id = arxiv_id.strip()
+    # Strip URL prefix if pasted
+    arxiv_id = re.sub(r"https?://arxiv\.org/(?:abs|pdf)/", "", arxiv_id)
+    arxiv_id = arxiv_id.rstrip(".pdf")
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            resp = client.get(
+                ARXIV_BASE,
+                params={"id_list": arxiv_id, "max_results": 1},
+            )
+        if resp.status_code != 200:
+            return []
+        root = ET.fromstring(resp.text)
+        results = search_arxiv.__wrapped__ if hasattr(search_arxiv, '__wrapped__') else None
+        # Parse the single entry directly
+        entries = root.findall("atom:entry", ARXIV_NS)
+        if not entries:
+            return []
+        entry = entries[0]
+
+        title_el   = entry.find("atom:title",   ARXIV_NS)
+        summary_el = entry.find("atom:summary", ARXIV_NS)
+        pub_el     = entry.find("atom:published", ARXIV_NS)
+        id_el      = entry.find("atom:id",      ARXIV_NS)
+        doi_el     = entry.find("arxiv:doi",    ARXIV_NS)
+
+        title    = (title_el.text or "").strip().replace("\n", " ") if title_el is not None else ""
+        abstract = (summary_el.text or "").strip().replace("\n", " ") if summary_el is not None else ""
+        arxiv_url = (id_el.text or "").strip() if id_el is not None else ""
+        doi      = doi_el.text.strip() if doi_el is not None and doi_el.text else None
+
+        year = None
+        if pub_el is not None and pub_el.text:
+            m = re.match(r"(\d{4})", pub_el.text)
+            if m:
+                year = int(m.group(1))
+
+        authors_list = []
+        for author in entry.findall("atom:author", ARXIV_NS):
+            name_el = author.find("atom:name", ARXIV_NS)
+            if name_el is not None and name_el.text:
+                authors_list.append(name_el.text.strip())
+        authors = ", ".join(authors_list[:5])
+        if len(authors_list) > 5:
+            authors += " et al."
+
+        return [make_result(
+            source="arXiv (direct)",
+            title=title,
+            authors=authors,
+            year=year,
+            abstract=abstract,
+            doi=doi,
+            url=arxiv_url,
+            venue="arXiv",
+            paper_id=arxiv_id,
+        )]
+    except Exception:
+        return []
+
+
+# ── Semantic Scholar author search ────────────────────────────────────────────
+
+def search_by_author(author_name: str, limit: int = 15) -> list[dict]:
+    """Search for papers by a specific author via Semantic Scholar."""
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            # First find the author
+            resp = client.get(
+                f"{SS_BASE}/author/search",
+                params={"query": author_name, "limit": 3,
+                        "fields": "authorId,name,paperCount"},
+                headers={"User-Agent": "OrbittSpaceResearchTool/1.0"},
+            )
+        if resp.status_code != 200:
+            return []
+        authors_data = resp.json().get("data", [])
+        if not authors_data:
+            return []
+
+        # Use the top author match
+        author_id = authors_data[0]["authorId"]
+        author_display = authors_data[0]["name"]
+
+        with httpx.Client(timeout=TIMEOUT) as client:
+            resp2 = client.get(
+                f"{SS_BASE}/author/{author_id}/papers",
+                params={"limit": limit, "fields": SS_FIELDS},
+                headers={"User-Agent": "OrbittSpaceResearchTool/1.0"},
+            )
+        if resp2.status_code != 200:
+            return []
+
+        results = []
+        for p in resp2.json().get("data", []):
+            authors_list = [a.get("name", "") for a in (p.get("authors") or [])[:5]]
+            if len(p.get("authors") or []) > 5:
+                authors_list.append("et al.")
+            authors = ", ".join(authors_list)
+
+            ext = p.get("externalIds") or {}
+            doi = ext.get("DOI")
+            arxiv_id = ext.get("ArXiv")
+            url = p.get("url") or ""
+            if arxiv_id:
+                url = f"https://arxiv.org/abs/{arxiv_id}"
+            elif doi:
+                url = f"https://doi.org/{doi}"
+
+            results.append(make_result(
+                source=f"Author: {author_display}",
+                title=p.get("title", "Untitled"),
+                authors=authors,
+                year=p.get("year"),
+                abstract=p.get("abstract") or "",
+                doi=doi,
+                url=url,
+                venue=p.get("venue"),
+                citation_count=p.get("citationCount"),
+                paper_id=p.get("paperId", ""),
+            ))
+        return results
+    except Exception:
+        return []
+
+
+# ── Query type detection ──────────────────────────────────────────────────────
+
+def detect_query_type(query: str) -> str:
+    """
+    Detect what kind of input the user entered.
+    Returns: 'doi' | 'arxiv_id' | 'arxiv_url' | 'doi_url' | 'author' | 'keyword'
+    """
+    q = query.strip()
+
+    # DOI URL
+    if re.match(r"https?://(dx\.)?doi\.org/", q):
+        return "doi_url"
+
+    # arXiv URL
+    if re.match(r"https?://arxiv\.org/(abs|pdf)/", q):
+        return "arxiv_url"
+
+    # Raw DOI (starts with 10. and has a slash)
+    if re.match(r"^10\.\d{4,}/\S+", q):
+        return "doi"
+
+    # arXiv ID patterns: 2301.12345 or cs.RO/0601001 or hep-th/9901001
+    if re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", q):
+        return "arxiv_id"
+    if re.match(r"^[a-z\-]+(\.[A-Z]{2})?/\d{7}(v\d+)?$", q):
+        return "arxiv_id"
+
+    # Author search: "author:Name" prefix
+    if q.lower().startswith("author:"):
+        return "author"
+
+    return "keyword"
+
+
 # ── Combined search ───────────────────────────────────────────────────────────
 
 def search_papers(query: str, limit: int = 15) -> list[dict]:
     """
-    Search both Semantic Scholar and arXiv, merge results, deduplicate by title.
+    Smart search: auto-detects query type and routes to the right lookup.
+      - DOI or DOI URL  → CrossRef
+      - arXiv ID or URL → arXiv direct
+      - author:Name     → Semantic Scholar author search
+      - anything else   → keyword search across Semantic Scholar + arXiv
     """
+    qtype = detect_query_type(query.strip())
+
+    if qtype in ("doi", "doi_url"):
+        return lookup_by_doi(query.strip())
+
+    if qtype in ("arxiv_id", "arxiv_url"):
+        return lookup_by_arxiv_id(query.strip())
+
+    if qtype == "author":
+        author_name = query.strip()[7:].strip()  # strip "author:" prefix
+        return search_by_author(author_name, limit=limit)
+
+    # Default: keyword search across both databases
     ss_results    = search_semantic_scholar(query, limit=limit)
     arxiv_results = search_arxiv(query, limit=8)
 
-    # Deduplicate: skip arXiv results whose titles are already in SS results
     ss_titles = {r["title"].lower()[:60] for r in ss_results}
     unique_arxiv = [
         r for r in arxiv_results
@@ -196,7 +438,7 @@ def search_papers(query: str, limit: int = 15) -> list[dict]:
     ]
 
     combined = ss_results + unique_arxiv
-    return combined[:limit + 5]  # return up to limit+5 so UI can cap
+    return combined[:limit + 5]
 
 
 # ── Enrich metadata via Claude ────────────────────────────────────────────────
@@ -211,12 +453,21 @@ from models import (
 )
 
 ENRICH_SYSTEM = """\
-You are an expert VLEO (Very Low Earth Orbit) research analyst.
+You are an expert VLEO (Very Low Earth Orbit) and ABEP research analyst.
 Given a paper's title, authors, year, abstract, and venue, return a JSON object
 with all structured fields filled in as accurately as possible from the available information.
 Since you only have the abstract (not the full paper), be appropriately cautious
 with fields like key_results and figures_graphs — mark them as partial.
 Apply the 4-criteria VLEO scoring framework rigorously.
+
+For the "tags" field, choose ALL that apply from this canonical list (use exact strings):
+  ABEP, VLEO, Propulsion, Plasma, Power Electronics, Missions, Operations,
+  Aerodynamics, Atmospheric Drag, Space Debris, Earth Observation, Navigation,
+  Communications, Thermal Management, Materials, Orbit Mechanics,
+  Collision Avoidance, Space Sustainability, Attitude Control, Hall Effect Thruster,
+  Ion Thruster, Solar Cells, Magnetorquer, Drag Compensation, Atomic Oxygen,
+  Neutral Gas Ingestion, Ionosphere, Thermosphere, Cubesat, Small Satellite
+
 Return ONLY valid JSON, no markdown.
 """
 
