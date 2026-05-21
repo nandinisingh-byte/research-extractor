@@ -26,6 +26,7 @@ load_dotenv()
 from database import delete_paper, get_all_papers, get_paper_count, get_paper_by_id, init_db, save_paper
 from exports import generate_all_docx, generate_all_pdf, generate_docx, generate_pdf
 from extractor import extract_paper
+from gitlab_sync import push_paper_to_gitlab
 from models import ExtractionResponse, ResearchPaper
 from notion_sync import push_to_notion
 from search import enrich_from_metadata, search_papers
@@ -138,7 +139,10 @@ async def extract_and_sync(
         notion_error = str(e)
 
     try:
-        save_paper(paper, notion_page_id=page_id, notion_url=page_url)
+        paper_id = save_paper(paper, notion_page_id=page_id, notion_url=page_url)
+        paper_dict = get_paper_by_id(paper_id)
+        if paper_dict:
+            push_paper_to_gitlab(paper_dict, pdf_bytes=pdf_bytes)
     except Exception:
         pass
 
@@ -173,7 +177,10 @@ async def extract_only_save(
         return ExtractionResponse(success=False, error=f"Extraction failed: {e}")
 
     try:
-        save_paper(paper)
+        paper_id = save_paper(paper)
+        paper_dict = get_paper_by_id(paper_id)
+        if paper_dict:
+            push_paper_to_gitlab(paper_dict, pdf_bytes=pdf_bytes)
     except Exception as e:
         return ExtractionResponse(
             success=False, paper=paper,
@@ -241,7 +248,10 @@ async def add_from_search(body: dict):
             pass  # Notion failure shouldn't block dashboard save
 
     try:
-        save_paper(paper, notion_page_id=page_id, notion_url=page_url)
+        paper_id = save_paper(paper, notion_page_id=page_id, notion_url=page_url)
+        paper_dict = get_paper_by_id(paper_id)
+        if paper_dict:
+            push_paper_to_gitlab(paper_dict)  # no PDF for search-added papers
     except Exception as e:
         return ExtractionResponse(success=False, paper=paper,
                                   error=f"Enrichment succeeded but save failed: {e}")
