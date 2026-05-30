@@ -101,7 +101,7 @@ async def extract_only(
     _validate_size(pdf_bytes)
 
     try:
-        paper = extract_paper(pdf_bytes)
+        paper = extract_paper(pdf_bytes, filename=file.filename)
     except ValueError as e:
         return ExtractionResponse(success=False, error=str(e))
     except Exception as e:
@@ -125,7 +125,7 @@ async def extract_and_sync(
     _validate_size(pdf_bytes)
 
     try:
-        paper = extract_paper(pdf_bytes)
+        paper = extract_paper(pdf_bytes, filename=file.filename)
     except ValueError as e:
         return ExtractionResponse(success=False, error=str(e))
     except Exception as e:
@@ -170,7 +170,7 @@ async def extract_only_save(
     _validate_size(pdf_bytes)
 
     try:
-        paper = extract_paper(pdf_bytes)
+        paper = extract_paper(pdf_bytes, filename=file.filename)
     except ValueError as e:
         return ExtractionResponse(success=False, error=str(e))
     except Exception as e:
@@ -319,13 +319,14 @@ def export_all_docx():
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _validate_pdf(file: UploadFile):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+    name = file.filename.lower()
+    if not (name.endswith(".pdf") or name.endswith(".docx") or name.endswith(".doc")):
+        raise HTTPException(status_code=400, detail="Only PDF and Word (.docx) files are accepted.")
 
 
 def _validate_size(pdf_bytes: bytes):
     if len(pdf_bytes) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="PDF must be under 50 MB.")
+        raise HTTPException(status_code=413, detail="File must be under 50 MB.")
 
 
 # ── Dev runner ─────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 import anthropic
+import docx as python_docx
 import pdfplumber
 
 from models import (
@@ -48,6 +49,34 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return "\n\n".join(pages)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+def extract_text_from_docx(docx_bytes: bytes) -> str:
+    """Extract all text from a Word (.docx) file."""
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp.write(docx_bytes)
+        tmp_path = tmp.name
+
+    try:
+        doc = python_docx.Document(tmp_path)
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        # Also extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        paragraphs.append(cell.text.strip())
+        return "\n\n".join(paragraphs)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+def extract_text(file_bytes: bytes, filename: str = "") -> str:
+    """Auto-detect file type and extract text accordingly."""
+    name = filename.lower()
+    if name.endswith(".docx") or name.endswith(".doc"):
+        return extract_text_from_docx(file_bytes)
+    return extract_text_from_pdf(file_bytes)
 
 
 def truncate(text: str, max_chars: int = MAX_CHARS) -> str:
@@ -134,14 +163,15 @@ Return ONLY the JSON object.
 
 # ── Main extraction function ──────────────────────────────────────────────────
 
-def extract_paper(pdf_bytes: bytes) -> ResearchPaper:
+def extract_paper(pdf_bytes: bytes, filename: str = "") -> ResearchPaper:
     """
-    Full pipeline: PDF bytes → raw text → Claude extraction → ResearchPaper model.
+    Full pipeline: file bytes → raw text → Claude extraction → ResearchPaper model.
+    Supports PDF and Word (.docx) files.
     """
     # 1. Extract raw text
-    raw_text = extract_text_from_pdf(pdf_bytes)
+    raw_text = extract_text(pdf_bytes, filename)
     if not raw_text.strip():
-        raise ValueError("Could not extract any text from the PDF. It may be scanned/image-based.")
+        raise ValueError("Could not extract any text from this file. PDFs may be scanned/image-based.")
 
     truncated = truncate(raw_text)
 

@@ -196,6 +196,27 @@
     .drop-zone h3 { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
     .drop-zone p  { font-size: 13px; color: var(--muted); }
     .drop-zone .browse { color: var(--orange); font-weight: 700; text-decoration: underline; }
+    .browse-btn {
+      display: inline-block; padding: 8px 20px; border-radius: 8px;
+      border: 2px solid var(--orange); color: var(--orange); font-weight: 700;
+      font-size: 13px; cursor: pointer; background: white; transition: all 0.15s;
+    }
+    .browse-btn:hover { background: var(--orange); color: white; }
+
+    /* Queue list */
+    .queue-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: white; margin-bottom: 8px; font-size: 13px;
+    }
+    .queue-item .q-icon { font-size: 20px; flex-shrink: 0; }
+    .queue-item .q-name { flex: 1; font-weight: 600; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-item .q-size { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+    .queue-item .q-status { font-size: 12px; font-weight: 700; flex-shrink: 0; min-width: 90px; text-align: right; }
+    .q-status.pending  { color: var(--muted); }
+    .q-status.processing { color: var(--orange); }
+    .q-status.done     { color: var(--low); }
+    .q-status.error    { color: var(--high); }
 
     .upload-btn {
       display: none;
@@ -697,8 +718,8 @@
 <!-- ── Upload panel ── -->
 <div class="panel" id="panel-upload">
   <div class="upload-panel">
-    <h2>Upload a Research Paper</h2>
-    <p>Drop a PDF and Claude AI will extract all fields automatically — no manual entry needed.</p>
+    <h2>Upload Research Papers</h2>
+    <p>Upload single files, multiple files at once, or an entire folder — PDF and Word docs supported.</p>
 
     <div class="mode-selector">
       <button class="mode-btn selected" onclick="selectMode('save', this)">
@@ -713,20 +734,39 @@
       </button>
     </div>
 
+    <!-- Upload zone -->
     <div class="drop-zone" id="drop-zone">
-      <input type="file" id="file-input" accept=".pdf" />
+      <input type="file" id="file-input" accept=".pdf,.doc,.docx" multiple />
+      <input type="file" id="folder-input" webkitdirectory multiple style="display:none" />
       <div class="drop-icon">🛰️</div>
-      <h3>Drag & drop your PDF here</h3>
-      <p>or <span class="browse">browse to choose a file</span></p>
-      <p style="margin-top:8px;font-size:12px;color:var(--muted)">PDF files only · Max 50 MB</p>
+      <h3>Drag & drop files or a folder here</h3>
+      <p>or choose below</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
+        <label for="file-input" class="browse-btn">📄 Select Files</label>
+        <label for="folder-input" class="browse-btn">📁 Select Folder</label>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--muted)">PDF · Word (.docx) · Multiple files · Whole folders · Max 50 MB each</p>
     </div>
 
-    <div class="progress-box" id="progress-box">
-      <div class="progress-title" id="progress-title">Uploading…</div>
-      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
-      <div class="progress-step" id="progress-step"></div>
+    <!-- Queue -->
+    <div id="upload-queue" style="display:none;margin-top:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span id="queue-summary" style="font-weight:700;color:var(--navy);font-size:15px;"></span>
+        <div style="display:flex;gap:8px;">
+          <button onclick="processQueue()" id="process-btn"
+            style="background:var(--orange);color:white;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px;">
+            ▶ Process All
+          </button>
+          <button onclick="clearQueue()"
+            style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div id="queue-list"></div>
     </div>
-    <div class="result-box" id="result-box">
+
+    <div class="result-box" id="result-box" style="margin-top:16px;">
       <h4 id="result-title"></h4>
       <p id="result-body"></p>
     </div>
@@ -741,10 +781,17 @@
 
     <div class="search-row">
       <input class="discover-input" id="discover-input" type="search"
-             placeholder="e.g. VLEO atmospheric drag, satellite orbit decay, space debris…"
+             placeholder="Keywords, DOI (10.xxxx/…), arXiv ID (2301.12345), URL, or author:Name"
              onkeydown="if(event.key==='Enter') doSearch()" />
       <button class="discover-btn" id="discover-btn" onclick="doSearch()">Search</button>
     </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:12px; margin-top:-8px;">
+      🔎 <strong>Keywords</strong> &nbsp;·&nbsp;
+      📄 <strong>DOI</strong> e.g. <code>10.1016/j.actaastro.2021.01.001</code> &nbsp;·&nbsp;
+      📦 <strong>arXiv ID</strong> e.g. <code>2301.12345</code> &nbsp;·&nbsp;
+      🔗 <strong>Any arXiv / DOI URL</strong> &nbsp;·&nbsp;
+      👤 <strong>Author</strong> e.g. <code>author:Smith</code>
+    </p>
 
     <div class="search-chips">
       <span class="search-chip" onclick="quickSearch('ABEP air-breathing electric propulsion VLEO')">⚡ ABEP</span>
@@ -845,25 +892,112 @@
     btn.classList.add('selected');
   }
 
-  // ── Drag & Drop ────────────────────────────────────────────────────────────
-  const dropZone  = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('file-input');
+  // ── Upload queue ────────────────────────────────────────────────────────────
+  const ACCEPTED = ['.pdf', '.doc', '.docx'];
+  let uploadQueue = []; // [{file, status: 'pending'|'processing'|'done'|'error', message}]
 
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  });
-  fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+  const dropZone    = document.getElementById('drop-zone');
+  const fileInput   = document.getElementById('file-input');
+  const folderInput = document.getElementById('folder-input');
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
-  function setProgress(pct, title, step) {
-    document.getElementById('progress-box').classList.add('show');
-    document.getElementById('progress-bar').style.width = pct + '%';
-    document.getElementById('progress-title').textContent = title;
-    document.getElementById('progress-step').textContent = step;
+  function isAccepted(name) {
+    return ACCEPTED.some(ext => name.toLowerCase().endsWith(ext));
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+  }
+
+  function fileIcon(name) {
+    if (name.toLowerCase().endsWith('.pdf')) return '📄';
+    if (name.toLowerCase().endsWith('.docx') || name.toLowerCase().endsWith('.doc')) return '📝';
+    return '📎';
+  }
+
+  function addFilesToQueue(files) {
+    const arr = Array.from(files).filter(f => isAccepted(f.name));
+    if (!arr.length) { showResult(false, '❌ No supported files', 'Please upload PDF or Word (.docx) files.'); return; }
+    arr.forEach(f => uploadQueue.push({ file: f, status: 'pending', message: '' }));
+    renderQueue();
+    document.getElementById('result-box').className = 'result-box';
+  }
+
+  function renderQueue() {
+    const qDiv = document.getElementById('upload-queue');
+    const list  = document.getElementById('queue-list');
+    const summary = document.getElementById('queue-summary');
+    if (!uploadQueue.length) { qDiv.style.display = 'none'; return; }
+    qDiv.style.display = 'block';
+    const done = uploadQueue.filter(i=>i.status==='done').length;
+    const errs = uploadQueue.filter(i=>i.status==='error').length;
+    summary.textContent = `${uploadQueue.length} file${uploadQueue.length!==1?'s':''} queued · ${done} done${errs?' · '+errs+' failed':''}`;
+    list.innerHTML = uploadQueue.map((item, i) => `
+      <div class="queue-item" id="qi-${i}">
+        <span class="q-icon">${fileIcon(item.file.name)}</span>
+        <span class="q-name" title="${esc(item.file.name)}">${esc(item.file.name)}</span>
+        <span class="q-size">${formatSize(item.file.size)}</span>
+        <span class="q-status ${item.status}" id="qs-${i}">
+          ${item.status==='pending'?'⏳ Pending':item.status==='processing'?'🧠 Processing…':item.status==='done'?'✅ Done':'❌ Failed'}
+        </span>
+      </div>`).join('');
+  }
+
+  function clearQueue() {
+    uploadQueue = [];
+    renderQueue();
+    document.getElementById('result-box').className = 'result-box';
+  }
+
+  async function processQueue() {
+    const pending = uploadQueue.filter(i => i.status === 'pending');
+    if (!pending.length) { showResult(false, '⚠️ Nothing to process', 'All files are already done or queue is empty.'); return; }
+    document.getElementById('process-btn').disabled = true;
+    document.getElementById('result-box').className = 'result-box';
+
+    const endpoint = uploadMode === 'sync' ? '/extract-and-sync' : '/extract-only-save';
+    let done = 0, failed = 0;
+
+    for (let i = 0; i < uploadQueue.length; i++) {
+      const item = uploadQueue[i];
+      if (item.status !== 'pending') continue;
+
+      item.status = 'processing';
+      renderQueue();
+
+      const formData = new FormData();
+      formData.append('file', item.file);
+
+      try {
+        const res = await fetch(endpoint, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          item.status = 'done';
+          item.message = data.paper?.title || item.file.name;
+          done++;
+        } else {
+          item.status = 'error';
+          item.message = data.error || 'Unknown error';
+          failed++;
+        }
+      } catch (e) {
+        item.status = 'error';
+        item.message = e.message;
+        failed++;
+      }
+      renderQueue();
+    }
+
+    document.getElementById('process-btn').disabled = false;
+    loadPapers();
+    showResult(
+      failed === 0,
+      failed === 0 ? `✅ All ${done} papers added!` : `⚠️ ${done} added, ${failed} failed`,
+      failed === 0
+        ? `<a href="#" onclick="switchTab('papers');return false;">View all papers →</a>`
+        : `Check the queue above for details on which files failed.`
+    );
   }
 
   function showResult(success, title, body) {
@@ -873,44 +1007,15 @@
     document.getElementById('result-body').innerHTML = body;
   }
 
-  async function handleFile(file) {
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      showResult(false, '❌ Wrong file type', 'Please upload a PDF file.');
-      return;
-    }
-    document.getElementById('result-box').className = 'result-box';
-    document.getElementById('progress-box').classList.remove('show');
-
-    const endpoint = uploadMode === 'sync' ? '/extract-and-sync' : '/extract-only-save';
-    const formData = new FormData();
-    formData.append('file', file);
-
-    setProgress(15, '📤 Uploading…', 'Sending file to server…');
-    let response;
-    try {
-      setProgress(35, '🧠 Extracting fields…', 'Claude AI is reading your paper — this takes ~20 seconds…');
-      response = await fetch(endpoint, { method: 'POST', body: formData });
-    } catch (e) {
-      document.getElementById('progress-box').classList.remove('show');
-      showResult(false, '❌ Network error', 'Could not reach the server: ' + e.message);
-      return;
-    }
-
-    setProgress(85, '💾 Saving…', 'Almost done…');
-    const data = await response.json();
-    setProgress(100, '✅ Done!', '');
-
-    if (data.success) {
-      let body = `<strong>${esc(data.paper?.title || file.name)}</strong> has been added.`;
-      if (data.notion_url) body += ` <a href="${esc(data.notion_url)}" target="_blank">Open in Notion →</a>`;
-      body += `<br><br><a href="#" onclick="switchTab('papers');return false;">View all papers →</a>`;
-      showResult(true, '✅ Paper added successfully!', body);
-      loadPapers();
-    } else {
-      showResult(false, '❌ Something went wrong', esc(data.error || 'Unknown error. Please try again.'));
-    }
-    fileInput.value = '';
-  }
+  // Drag & drop
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    addFilesToQueue(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files.length) addFilesToQueue(fileInput.files); fileInput.value=''; });
+  folderInput.addEventListener('change', () => { if (folderInput.files.length) addFilesToQueue(folderInput.files); folderInput.value=''; });
 
   // ── Load data ──────────────────────────────────────────────────────────────
   async function loadPapers() {
