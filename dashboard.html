@@ -208,10 +208,12 @@
       padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
       background: white; margin-bottom: 8px; font-size: 13px;
     }
+    .queue-item { flex-wrap: wrap; }
     .queue-item .q-icon { font-size: 20px; flex-shrink: 0; }
-    .queue-item .q-name { flex: 1; font-weight: 600; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-item .q-name { flex: 1; font-weight: 600; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .queue-item .q-size { color: var(--muted); font-size: 12px; flex-shrink: 0; }
     .queue-item .q-status { font-size: 12px; font-weight: 700; flex-shrink: 0; min-width: 90px; text-align: right; }
+    .queue-item .q-error { width: 100%; font-size: 11px; color: var(--high); padding-left: 32px; margin-top: 2px; }
     .q-status.pending  { color: var(--muted); }
     .q-status.processing { color: var(--orange); }
     .q-status.done     { color: var(--low); }
@@ -756,6 +758,10 @@
             style="background:var(--orange);color:white;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px;">
             ▶ Process All
           </button>
+          <button onclick="processQueue(true)"
+            style="background:none;border:1px solid var(--orange);color:var(--orange);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:700;">
+            🔁 Retry Failed
+          </button>
           <button onclick="clearQueue()"
             style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;">
             Clear
@@ -940,6 +946,7 @@
         <span class="q-status ${item.status}" id="qs-${i}">
           ${item.status==='pending'?'⏳ Pending':item.status==='processing'?'🧠 Processing…':item.status==='done'?'✅ Done':'❌ Failed'}
         </span>
+        ${item.status==='error' && item.message ? `<span class="q-error">↳ ${esc(item.message)}</span>` : ''}
       </div>`).join('');
   }
 
@@ -949,9 +956,13 @@
     document.getElementById('result-box').className = 'result-box';
   }
 
-  async function processQueue() {
-    const pending = uploadQueue.filter(i => i.status === 'pending');
-    if (!pending.length) { showResult(false, '⚠️ Nothing to process', 'All files are already done or queue is empty.'); return; }
+  async function processQueue(retryOnly = false) {
+    const toProcess = uploadQueue.filter(i => retryOnly ? i.status === 'error' : i.status === 'pending');
+    if (!toProcess.length) { showResult(false, '⚠️ Nothing to process', retryOnly ? 'No failed files to retry.' : 'All files are already done or queue is empty.'); return; }
+
+    // Reset errors to pending if retrying
+    if (retryOnly) toProcess.forEach(i => { i.status = 'pending'; i.message = ''; });
+
     document.getElementById('process-btn').disabled = true;
     document.getElementById('result-box').className = 'result-box';
 
@@ -986,6 +997,9 @@
         failed++;
       }
       renderQueue();
+
+      // 3-second pause between files to avoid Claude API rate limits
+      if (i < uploadQueue.length - 1) await new Promise(r => setTimeout(r, 3000));
     }
 
     document.getElementById('process-btn').disabled = false;
@@ -995,7 +1009,7 @@
       failed === 0 ? `✅ All ${done} papers added!` : `⚠️ ${done} added, ${failed} failed`,
       failed === 0
         ? `<a href="#" onclick="switchTab('papers');return false;">View all papers →</a>`
-        : `Check the queue above for details on which files failed.`
+        : `<a href="#" onclick="processQueue(true);return false;">🔁 Retry failed files</a> &nbsp;·&nbsp; <a href="#" onclick="switchTab('papers');return false;">View saved papers →</a>`
     );
   }
 
